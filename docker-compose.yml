@@ -1,0 +1,103 @@
+version: '3'
+
+services:
+
+  workspace:
+    build: ./docker/workspace
+    tty: true
+    extra_hosts:
+      - "host.docker.internal:10.0.2.2"
+    volumes:
+      - ./src:/var/www
+      - ./docker/workspace/config/php.ini:/etc/php/7.3/cli/conf.d/99-php.ini
+    environment:
+      TZ: Asia/Tokyo
+    working_dir: /var/www
+
+  selenium:
+    image: selenium/hub
+    ports:
+      - '4444:4444'
+  selenium-chrome:
+    image: selenium/node-chrome-debug
+    environment:
+      - HUB_PORT_4444_TCP_ADDR=selenium
+      - HUB_PORT_4444_TCP_PORT=4444
+    depends_on:
+      - selenium
+    ports:
+      - '5900:5900'
+
+  web:
+    build: ./docker/web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/web/config:/etc/nginx/conf.d/
+      - ./.docker/data/web/log:/var/log/nginx
+      - ./src:/var/www
+    environment:
+      TZ: Asia/Tokyo
+    depends_on:
+      - php
+      - node
+
+  php:
+    build: ./docker/php
+    extra_hosts:
+      - "host.docker.internal:10.0.2.2"
+    volumes:
+      - ./docker/php/config/php.ini:/usr/local/etc/php/php.ini
+      - ./docker/php/config/xdebug.ini:/usr/local/etc/php/conf.d/xdebug.ini
+      - ./src:/var/www
+    working_dir: /var/www
+
+  node:
+    build: ./docker/node
+    ports:
+      - "3000:3000"
+    tty: true
+    volumes:
+      - ./src:/var/www
+    working_dir: /var/www
+
+  mariadb:
+    image: mariadb:10.4
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb:/var/lib/mysql
+      - ./docker/mariadb/config/my.cnf:/etc/mysql/conf.d/my.cnf
+    environment:
+      MYSQL_ROOT_PASSWORD: vagrant
+      MYSQL_USER: vagrant
+      MYSQL_PASSWORD: vagrant
+      MYSQL_DATABASE: vagrant
+      TZ: "Asia/Tokyo"
+
+  postgres:
+    build: ./docker/postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=vagrant
+      - POSTGRES_PASSWORD=vagrant
+      - POSTGRES_DB=vagrant
+
+  redis:
+    image: "redis:latest"
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis:/data
+
+volumes:
+  mariadb:
+    driver: local
+  postgres:
+    driver: local
+  redis:
+    driver: local
